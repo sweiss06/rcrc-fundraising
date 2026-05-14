@@ -299,13 +299,22 @@ function renderBreakdown() {
     el.innerHTML = `<div class="empty"><div class="empty-icon">💰</div>No financial data yet. Updates appear here as funds are raised.</div>`;
     return;
   }
-  const total = ftData.reduce((s,r) => { const n=parseFloat(r[2]); return s+(isNaN(n)?0:n); }, 0);
+  // Only show Active fundraisers in breakdown
+  const activeNames = new Set(osData.filter(r => String(r[9]).trim() === 'Active').map(r => String(r[0]).trim()));
+  const activeFt = ftData.filter(r => activeNames.has(String(r[0]).trim()));
+
+  if (!activeFt.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">💰</div>No active fundraiser totals yet. Updates appear here as funds are raised.</div>`;
+    return;
+  }
+
+  const total = activeFt.reduce((s,r) => { const n=parseFloat(r[2]); return s+(isNaN(n)?0:n); }, 0);
   let h = `<div class="total-bar">
-    <div><div class="total-bar-label">Season Total Raised</div>
+    <div><div class="total-bar-label">Active Fundraisers Total</div>
     <div class="total-bar-amount">${total>0?fmt(total):'—'}</div></div>
     <div class="total-bar-icon">🏆</div></div>
     <p class="section-heading">Per Fundraiser</p>`;
-  ftData.forEach(r => {
+  activeFt.forEach(r => {
     const name   = String(r[0]||'').trim();
     const fto    = String(r[1]||'').trim();
     const raised = fmt(r[2]);
