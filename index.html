@@ -494,7 +494,7 @@ function renderFundraisers() {
         </div>
         ${statusBadge(vstatus)}
       </div>
-      ${needsVols ? `<div class="vol-banner">
+      ${(needsVols && spotsLeft > 0) ? `<div class="vol-banner">
         <span class="vol-banner-icon">🙋</span>
         <span class="vol-banner-text">Volunteers Needed</span>
         <span class="vol-banner-spots">${spotsLeft} spot${spotsLeft!==1?'s':''} open</span>
