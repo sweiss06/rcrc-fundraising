@@ -303,6 +303,16 @@ function firstName(s) {
 }
 
 // Parse date string to Date object for sorting
+// Convert plain URLs in text to clickable links
+function linkify(text) {
+  if (!text) return '';
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  return text.replace(urlRegex, url => {
+    const display = url.length > 35 ? url.substring(0, 35) + '…' : url;
+    return `<a href="${url}" target="_blank" style="color:var(--teal);text-decoration:underline;word-break:break-all;">${display}</a>`;
+  });
+}
+
 function parseDate(str) {
   if (!str || str === '') return null;
   const d = new Date(str);
@@ -443,7 +453,7 @@ function renderFundraisers() {
           <span style="font-size:12px;color:var(--text-lt);">${phone}</span>
         </div></div>
         <div class="info-row"><div class="info-label">Volunteers</div><div class="info-val">${spots}</div></div>
-        ${notes?`<div class="info-row"><div class="info-label">Details</div><div class="info-val" style="color:var(--text-lt);font-size:12px;">${notes}</div></div>`:''}
+        ${notes?`<div class="info-row"><div class="info-label">Details</div><div class="info-val" style="color:var(--text-lt);font-size:12px;line-height:1.6;">${linkify(notes)}</div></div>`:''}
       </div>
     </div>`;
   });
