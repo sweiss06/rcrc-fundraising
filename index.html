@@ -514,98 +514,81 @@
 
 <script>
 // ─────────────────────────────────────────────────────────────────────────────
-// CONFIG — PASTE YOUR SHEET ID BELOW
-// Your Google Sheet ID is the long string in the URL:
-// docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit
+// CONFIG
 // ─────────────────────────────────────────────────────────────────────────────
 const SHEET_ID = '149Hy19K08-yWtZ0bk503GQP1yKcjIby6HuhLK6UA1pg';
-const OPEN_SIGNUPS_GID  = '511872240';        // GID of 📋 OPEN SIGNUPS tab
-const FUNDRAISER_GID    = '513336728';        // GID of 💰 FUNDRAISER TOTALS tab
+const OPEN_SIGNUPS_GID  = '511872240';
+const FUNDRAISER_GID    = '513336728';
 
-// Build CSV export URL for a given sheet GID
-function csvUrl(gid) {
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
+// Uses Google Visualization API — works without CORS issues from any host
+function sheetUrl(gid) {
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${gid}`;
 }
 
-// ── Parse CSV ─────────────────────────────────────────────────────────────────
-function parseCSV(text) {
-  const rows = [];
-  const lines = text.split('\n');
-  for (let line of lines) {
-    const row = [];
-    let cur = '', inQ = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') { inQ = !inQ; }
-      else if (ch === ',' && !inQ) { row.push(cur.trim()); cur = ''; }
-      else { cur += ch; }
-    }
-    row.push(cur.trim());
-    rows.push(row);
-  }
+// Parse Google's gviz JSON response into rows of plain values
+function parseGviz(text) {
+  // Strip the callback wrapper: google.visualization.Query.setResponse({...})
+  const json = JSON.parse(text.replace(/^[^{]*/, '').replace(/[^}]*$/, ''));
+  const cols = json.table.cols.map(c => c.label);
+  const rows = (json.table.rows || []).map(row =>
+    (row.c || []).map(cell => {
+      if (!cell || cell.v === null || cell.v === undefined) return '';
+      // Format numbers nicely, return strings as-is
+      if (typeof cell.v === 'number') return cell.v;
+      return String(cell.v);
+    })
+  );
   return rows;
 }
 
-// ── Format currency ───────────────────────────────────────────────────────────
-function fmt(val) {
-  const n = parseFloat(val);
-  if (isNaN(n) || val === '' || val === null) return null;
-  return '$' + n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-}
-
-// ── Status badge ──────────────────────────────────────────────────────────────
-function badge(status) {
-  const map = {
-    'Open':           ['badge-open',   'Open'],
-    'Full':           ['badge-full',   'Full'],
-    'Nearly Full':    ['badge-nearly', 'Nearly Full'],
-    'Organizer Only': ['badge-solo',   'Solo Run'],
-  };
-  const [cls, label] = map[status] || ['badge-solo', status];
-  return `<span class="badge ${cls}">${label}</span>`;
-}
-
-// ── Pill for funds type ───────────────────────────────────────────────────────
-function pill(type) {
-  const map = {
-    'Team':         ['pill-team',  '👥 Whole Team'],
-    'Boat':         ['pill-boat',  '⛵ Boat'],
-    'Participants': ['pill-part',  '🤝 Participants'],
-  };
-  const [cls, label] = map[type] || ['pill-team', type];
-  return `<span class="meta-pill ${cls}">${label}</span>`;
-}
-
-// ── Organizer first name ──────────────────────────────────────────────────────
-function firstName(fullLabel) {
-  if (!fullLabel) return '—';
-  const dash = fullLabel.indexOf(' –');
-  return dash > 0 ? fullLabel.substring(0, dash) : fullLabel;
-}
-
-// ── Main data load ────────────────────────────────────────────────────────────
+// ── Main data load ─────────────────────────────────────────────────────────
 let osData = [], ftData = [];
 
 async function loadData() {
+  // Show spinners
+  document.querySelectorAll('.loading').forEach(el => el.style.display = 'flex');
+  document.querySelectorAll('[id$="-content"]').forEach(el => el.style.display = 'none');
+
   try {
-    // Fetch both sheets in parallel
     const [osRes, ftRes] = await Promise.all([
-      fetch(csvUrl(OPEN_SIGNUPS_GID)),
-      fetch(csvUrl(FUNDRAISER_GID)),
+      fetch(sheetUrl(OPEN_SIGNUPS_GID)),
+      fetch(sheetUrl(FUNDRAISER_GID)),
     ]);
 
-    if (!osRes.ok || !ftRes.ok) throw new Error('Could not load sheet data.');
+    if (!osRes.ok || !ftRes.ok) throw new Error('Sheet returned an error. Check that it is published publicly.');
 
-    const [osCsv, ftCsv] = await Promise.all([osRes.text(), ftRes.text()]);
-    const osRows = parseCSV(osCsv);
-    const ftRows = parseCSV(ftCsv);
+    const [osText, ftText] = await Promise.all([osRes.text(), ftRes.text()]);
 
-    // Skip header row (row index 0 = headers in the exported CSV)
-    // Open Signups: col 0=Name, 1=Organizer, 2=Contact, 3=VolNeeded, 4=VolFilled,
-    //               5=FundsTo, 6=Boat, 7=VolStatus, 8=Notes, 9=FRStatus
-    // Fundraiser Totals: col 0=Name, 1=FundsTo, 2=TotalRaised, 3=SplitAmong, 4=PerAthlete, 5=SignupCount, 6=Notes
-    osData = osRows.slice(1).filter(r => r[0] && r[0] !== 'Fundraiser Name');
-    ftData = ftRows.slice(1).filter(r => r[0] && r[0] !== 'Fundraiser\n(from Open Signups)');
+    const osRows = parseGviz(osText);
+    const ftRows = parseGviz(ftText);
+
+    // Open Signups: skip header (row 0), skip instruction rows
+    // Col: 0=Name, 1=Organizer, 2=Contact, 3=VolNeeded, 4=VolFilled,
+    //      5=FundsTo, 6=Boat, 7=VolStatus, 8=Notes, 9=FRStatus
+    osData = osRows.filter(r => r[0] && r[0] !== 'Fundraiser Name' && r[0] !== '');
+
+    // Fundraiser Totals: col 0=Name, 1=FundsTo, 2=TotalRaised, 3=SplitAmong, 4=PerAthlete
+    // Skip header rows, instruction rows, and rows where name looks like sheet text
+    const skipWords = ['from Open Signups','Fundraiser','HOW TO USE','DO NOT','manually edit','auto-calc','ENTER HERE','←'];
+    ftData = ftRows.filter(r => {
+      const name = String(r[0] || '').trim();
+      if (!name) return false;
+      if (skipWords.some(w => name.includes(w))) return false;
+      // Must have a valid funds-go-to value in col 1
+      const fundsTo = String(r[1] || '').trim();
+      if (!['Team','Boat','Participants'].includes(fundsTo)) return false;
+      return true;
+    });
+
+    // Open Signups: also tighten filter — must have a real fundraiser status in col 9
+    osData = osRows.filter(r => {
+      const name = String(r[0] || '').trim();
+      const status = String(r[9] || '').trim();
+      if (!name) return false;
+      if (name === 'Fundraiser Name') return false;
+      if (!['Active','Completed','Cancelled'].includes(status)) return false;
+      return true;
+    });
 
     renderActive();
     renderBreakdown();
@@ -614,208 +597,23 @@ async function loadData() {
     document.querySelectorAll('.loading').forEach(el => el.style.display = 'none');
     document.querySelectorAll('[id$="-content"]').forEach(el => el.style.display = 'block');
 
-    // Update last-updated time
-    const t = new Date().toLocaleTimeString('en-US', {hour:'numeric',minute:'2-digit'});
+    const t = new Date().toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
     document.querySelectorAll('.last-updated').forEach(el => el.textContent = `Last updated ${t}`);
 
   } catch (err) {
     console.error(err);
     document.querySelectorAll('.loading').forEach(el => {
+      el.style.display = 'block';
       el.innerHTML = `<div class="error-msg">
-        ⚠️ Could not load data. Make sure the Google Sheet is published publicly.<br><br>
-        <strong>Error:</strong> ${err.message}
+        ⚠️ Could not load data.<br><br>
+        Make sure you have done <strong>File → Share → Publish to web</strong>
+        in Google Sheets (this is different from the regular Share button).<br><br>
+        <small style="color:var(--text-lt)">${err.message}</small>
       </div>`;
     });
   }
 }
 
-// ── Render: Active Fundraisers ────────────────────────────────────────────────
-function renderActive() {
-  const active = osData.filter(r => r[9] === 'Active');
-  const el = document.getElementById('active-content');
-
-  if (active.length === 0) {
-    el.innerHTML = `<div class="empty-state">
-      <div class="empty-state-icon">📋</div>
-      <p>No active fundraisers right now.<br>Check back soon or submit an idea!</p>
-    </div>`;
-    return;
-  }
-
-  let html = '<p class="section-heading">Open Fundraisers</p>';
-  active.forEach(r => {
-    const name = r[0], org = firstName(r[1]), phone = r[2] || '—';
-    const volNeeded = r[3], volFilled = r[4], fundsTo = r[5];
-    const volStatus = r[7], notes = r[8];
-    const spotsText = parseInt(volNeeded) === 0
-      ? 'Organizer running solo'
-      : `${volFilled} of ${volNeeded} spots filled`;
-
-    html += `
-    <div class="card">
-      <div class="card-header">
-        <div class="card-icon icon-green">🎯</div>
-        <div style="flex:1">
-          <div class="card-title">${name}</div>
-          <div class="card-sub">Funds go to: ${fundsTo}</div>
-        </div>
-        ${badge(volStatus)}
-      </div>
-      <div class="card-body">
-        <div class="info-row">
-          <div class="info-label">Organizer</div>
-          <div class="info-val">${org}</div>
-        </div>
-        <div class="info-row">
-          <div class="info-label">Call / Text</div>
-          <div class="info-val phone"><a href="tel:${phone}">${phone}</a></div>
-        </div>
-        <div class="info-row">
-          <div class="info-label">Volunteers</div>
-          <div class="info-val">${spotsText}</div>
-        </div>
-        ${notes ? `<div class="info-row">
-          <div class="info-label">Details</div>
-          <div class="info-val" style="color:var(--text-lt);font-size:12px;">${notes}</div>
-        </div>` : ''}
-      </div>
-    </div>`;
-  });
-
-  html += `<div class="last-updated"></div>`;
-  el.innerHTML = html;
-}
-
-// ── Render: Fundraiser Breakdown ──────────────────────────────────────────────
-function renderBreakdown() {
-  const el = document.getElementById('breakdown-content');
-  const withData = ftData.filter(r => r[0]);
-
-  if (withData.length === 0) {
-    el.innerHTML = `<div class="empty-state">
-      <div class="empty-state-icon">💰</div>
-      <p>No financial data yet. Updates will appear here as funds are raised.</p>
-    </div>`;
-    return;
-  }
-
-  // Total
-  const total = withData.reduce((sum, r) => {
-    const n = parseFloat(r[2]);
-    return sum + (isNaN(n) ? 0 : n);
-  }, 0);
-
-  let html = `
-  <div class="total-bar">
-    <div>
-      <div class="total-bar-label">Season Total Raised</div>
-      <div class="total-bar-amount">${total > 0 ? fmt(total) : '—'}</div>
-    </div>
-    <div class="total-bar-icon">🏆</div>
-  </div>
-  <p class="section-heading">Per Fundraiser</p>`;
-
-  withData.forEach(r => {
-    const name = r[0], fundsTo = r[1], totalRaised = r[2];
-    const splitAmong = r[3], perAth = r[4];
-    const raised = fmt(totalRaised);
-    const per = fmt(perAth);
-
-    html += `
-    <div class="card">
-      <div class="card-header">
-        <div class="card-icon icon-teal">💵</div>
-        <div style="flex:1">
-          <div class="card-title">${name}</div>
-          <div style="margin-top:4px;">${pill(fundsTo)}</div>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="amount-row">
-          <div class="amount-box">
-            <div class="amount-box-label">Total Raised</div>
-            <div class="amount-box-val ${raised ? '' : 'pending'}">${raised || 'Pending'}</div>
-          </div>
-          <div class="amount-box">
-            <div class="amount-box-label">Per Athlete</div>
-            <div class="amount-box-val ${per ? '' : 'pending'}">${per || '—'}</div>
-          </div>
-          <div class="amount-box">
-            <div class="amount-box-label">Split Among</div>
-            <div class="amount-box-val" style="font-size:11px;font-weight:500;color:var(--text-md);">${splitAmong || '—'}</div>
-          </div>
-        </div>
-      </div>
-    </div>`;
-  });
-
-  html += `<div class="last-updated"></div>`;
-  el.innerHTML = html;
-}
-
-// ── Render: Completed Fundraisers ─────────────────────────────────────────────
-function renderCompleted() {
-  const completed = osData.filter(r => r[9] === 'Completed');
-  const el = document.getElementById('completed-content');
-
-  if (completed.length === 0) {
-    el.innerHTML = `<div class="empty-state">
-      <div class="empty-state-icon">✅</div>
-      <p>No completed fundraisers yet.<br>Finished fundraisers will appear here.</p>
-    </div>`;
-    return;
-  }
-
-  let html = '<p class="section-heading">Wrapped Up</p>';
-  completed.forEach(r => {
-    const name = r[0], fundsTo = r[5], notes = r[8];
-    // Find matching row in Fundraiser Totals
-    const ft = ftData.find(f => f[0] === name) || [];
-    const raised = fmt(ft[2]);
-    const per = fmt(ft[4]);
-
-    html += `
-    <div class="card completed-card">
-      <div class="card-header">
-        <div class="card-icon icon-slate">✅</div>
-        <div style="flex:1">
-          <div class="card-title">${name}</div>
-          <div style="margin-top:4px;">${pill(fundsTo)}</div>
-        </div>
-        <span class="badge badge-done">Done</span>
-      </div>
-      <div class="card-body">
-        <div class="amount-row">
-          <div class="amount-box">
-            <div class="amount-box-label">Total Raised</div>
-            <div class="amount-box-val ${raised ? '' : 'pending'}">${raised || '—'}</div>
-          </div>
-          <div class="amount-box">
-            <div class="amount-box-label">Per Athlete</div>
-            <div class="amount-box-val ${per ? '' : 'pending'}">${per || '—'}</div>
-          </div>
-        </div>
-        ${notes ? `<div class="info-row" style="margin-top:4px;">
-          <div class="info-label">Notes</div>
-          <div class="info-val" style="color:var(--text-lt);font-size:12px;">${notes}</div>
-        </div>` : ''}
-      </div>
-    </div>`;
-  });
-
-  html += `<div class="last-updated"></div>`;
-  el.innerHTML = html;
-}
-
-// ── Tab switching ─────────────────────────────────────────────────────────────
-function switchTab(tab) {
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('section-' + tab).classList.add('active');
-  event.target.classList.add('active');
-}
-
-// ── Init ──────────────────────────────────────────────────────────────────────
 loadData();
 </script>
 
