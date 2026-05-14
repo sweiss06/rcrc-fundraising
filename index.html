@@ -132,6 +132,29 @@
   .vol-banner-icon { font-size: 16px; flex-shrink: 0; }
   .vol-banner-text { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 800; color: #fff; letter-spacing: 0.03em; text-transform: uppercase; }
   .vol-banner-spots { font-size: 11px; color: rgba(255,255,255,0.8); margin-left: auto; font-weight: 500; flex-shrink: 0; }
+  /* ── Modal ── */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 200; display: flex; align-items: flex-end; justify-content: center; animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+  .modal { background: var(--white); border-radius: 20px 20px 0 0; width: 100%; max-width: 580px; max-height: 80vh; overflow-y: auto; padding: 0 0 32px; animation: slideUp2 0.25s ease; }
+  @keyframes slideUp2 { from { transform: translateY(40px); opacity:0; } to { transform: translateY(0); opacity:1; } }
+  .modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 12px auto 0; }
+  .modal-header { padding: 16px 20px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--white); z-index: 1; }
+  .modal-title { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 800; color: var(--navy); }
+  .modal-close { width: 28px; height: 28px; border-radius: 50%; background: var(--off-white); border: none; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-md); }
+  .modal-body { padding: 12px 20px; }
+  .vol-row { display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); gap: 12px; }
+  .vol-row:last-child { border-bottom: none; }
+  .vol-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--navy); display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 800; color: #fff; flex-shrink: 0; }
+  .vol-info { flex: 1; min-width: 0; }
+  .vol-name { font-weight: 600; font-size: 14px; color: var(--text); }
+  .vol-athlete { font-size: 12px; color: var(--text-lt); margin-top: 1px; }
+  .vol-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .vol-btn { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; text-decoration: none; border: 1.5px solid var(--border); background: var(--white); }
+  .vol-btn.call { border-color: #B2D8C4; background: var(--green-vl); }
+  .vol-btn.text { border-color: #B2D4D4; background: var(--teal-lt); }
+  .view-vols-btn { display: inline-flex; align-items: center; gap: 5px; margin-top: 10px; padding: 7px 14px; background: var(--navy); color: #fff; border: none; border-radius: 20px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .view-vols-btn:hover { background: var(--navy-md); }
+  .modal-empty { text-align: center; padding: 32px 20px; color: var(--text-lt); font-size: 13px; }
   @media (min-width: 480px) { .content { padding: 0 20px 40px; max-width: 580px; margin: 0 auto; } }
 </style>
 </head>
@@ -251,9 +274,11 @@
 
 <script>
 // ── Config ────────────────────────────────────────────────────────────────────
-const SHEET_ID         = '1HPqckXCn5NE4eo8iygyyn5BVtcpzZJFXMX3_eA2Kczo';
-const OPEN_SIGNUPS_GID = '1191811415';
-const FUNDRAISER_GID   = '574964505';
+const SHEET_ID           = '1HPqckXCn5NE4eo8iygyyn5BVtcpzZJFXMX3_eA2Kczo';
+const OPEN_SIGNUPS_GID   = '1191811415';
+const FUNDRAISER_GID     = '574964505';
+const SIGNUP_ENTRIES_GID = '249285829'; // ← paste GID here
+const SETTINGS_GID       = '546109805';       // ← paste GID here
 
 const VALID_STATUS   = ['Active','Completed','Cancelled'];
 const VALID_FUNDS_TO = ['Team','Boat','Participants'];
@@ -338,20 +363,27 @@ function daysUntil(dateStr) {
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
-let osData = [], ftData = [];
+let osData = [], ftData = [], seData = [], settingsData = [];
 let currentFilter = 'active';
 
 async function loadData() {
   try {
-    const [r1, r2] = await Promise.all([
+    const fetches = [
       fetch(gvizUrl(OPEN_SIGNUPS_GID)),
-      fetch(gvizUrl(FUNDRAISER_GID))
-    ]);
-    if (!r1.ok || !r2.ok) throw new Error('Network error fetching sheet data.');
-    const [t1, t2] = await Promise.all([r1.text(), r2.text()]);
+      fetch(gvizUrl(FUNDRAISER_GID)),
+    ];
+    // Only fetch signup entries if GID is configured
+    const hasSignups = SIGNUP_ENTRIES_GID !== 'YOUR_SIGNUP_ENTRIES_GID';
+    const hasSettings = SETTINGS_GID !== 'YOUR_SETTINGS_GID';
+    if (hasSignups)  fetches.push(fetch(gvizUrl(SIGNUP_ENTRIES_GID)));
+    if (hasSettings) fetches.push(fetch(gvizUrl(SETTINGS_GID)));
 
-    const osRows = parseGviz(t1);
-    const ftRows = parseGviz(t2);
+    const responses = await Promise.all(fetches);
+    if (!responses[0].ok || !responses[1].ok) throw new Error('Network error fetching sheet data.');
+    const texts = await Promise.all(responses.map(r => r.text()));
+
+    const osRows = parseGviz(texts[0]);
+    const ftRows = parseGviz(texts[1]);
 
     // Open Signups: 0=Name 1=Organizer 2=Contact 3=VolNeeded 4=VolFilled
     //               5=FundsTo 6=Boat 7=VolStatus 8=Notes 9=FRStatus 10=Date
@@ -359,6 +391,18 @@ async function loadData() {
 
     // Fundraiser Totals: 0=Name 1=FundsTo 2=TotalRaised 3=SplitAmong 4=PerAthlete
     ftData = ftRows.filter(r => VALID_FUNDS_TO.includes(String(r[1]||'').trim()));
+
+    // Signup Entries: 0=Fundraiser 1=ParentLabel 2=Athlete 3=Boat
+    if (hasSignups && texts[2]) {
+      const seRows = parseGviz(texts[2]);
+      seData = seRows.filter(r => r[0] && String(r[0]).trim() !== '' && String(r[0]).trim() !== 'Fundraiser');
+    }
+
+    // Settings: col D=ParentLabel(idx3), col F=Phone(idx5)
+    if (hasSettings && texts[hasSignups ? 3 : 2]) {
+      const setRows = parseGviz(texts[hasSignups ? 3 : 2]);
+      settingsData = setRows.filter(r => r[3] && String(r[3]).trim() !== '' && String(r[3]).trim() !== 'Parent Labels');
+    }
 
     renderFundraisers();
     renderResults(currentFilter);
@@ -464,6 +508,11 @@ function renderFundraisers() {
         </div></div>
         <div class="info-row"><div class="info-label">Volunteers</div><div class="info-val">${spots}</div></div>
         ${notes?`<div class="info-row"><div class="info-label">Details</div><div class="info-val" style="color:var(--text-lt);font-size:12px;line-height:1.7;">${linkify(notes)}</div></div>`:''}
+        ${needed > 0 ? `<div style="padding-top:8px;">
+          <button class="view-vols-btn" onclick="showVolunteers('${name.replace(/'/g,"\\'")}')">
+            👥 View Volunteers (${filled})
+          </button>
+        </div>` : ''}
       </div>
     </div>`;
   });
@@ -549,6 +598,80 @@ function renderResults(filter) {
   <div class="last-updated"></div>`;
 
   el.innerHTML = h;
+}
+
+// ── Volunteer helpers ────────────────────────────────────────────────────────
+function getPhone(parentLabel) {
+  const row = settingsData.find(r => String(r[3]).trim() === String(parentLabel).trim());
+  return row ? String(row[5]||'').trim() : '';
+}
+
+function firstName(label) {
+  if (!label) return '—';
+  const i = String(label).indexOf(' –');
+  return i > 0 ? String(label).slice(0, i) : String(label);
+}
+
+function getInitials(label) {
+  const name = firstName(label);
+  return name.split(' ').map(w => w[0]||'').join('').toUpperCase().slice(0,2);
+}
+
+function showVolunteers(fundraiserName) {
+  const vols = seData.filter(r => String(r[0]).trim() === fundraiserName);
+
+  let bodyHtml = '';
+  if (!vols.length) {
+    bodyHtml = `<div class="modal-empty">No volunteers signed up yet.<br>Be the first!</div>`;
+  } else {
+    vols.forEach(r => {
+      const label   = String(r[1]||'').trim();
+      const athlete = String(r[2]||'').trim();
+      const phone   = getPhone(label);
+      const digits  = phone.replace(/\D/g,'');
+      const name    = firstName(label);
+      const initials = getInitials(label);
+
+      bodyHtml += `<div class="vol-row">
+        <div class="vol-avatar">${initials}</div>
+        <div class="vol-info">
+          <div class="vol-name">${name}</div>
+          <div class="vol-athlete">Athlete: ${athlete || '—'}${phone ? ' · ' + phone : ''}</div>
+        </div>
+        ${digits ? `<div class="vol-actions">
+          <a href="tel:${digits}" class="vol-btn call" title="Call">📞</a>
+          <a href="sms:${digits}" class="vol-btn text" title="Text">💬</a>
+        </div>` : ''}
+      </div>`;
+    });
+  }
+
+  const existing = document.getElementById('vol-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'vol-modal';
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-header">
+        <div class="modal-title">👥 ${fundraiserName}</div>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">${bodyHtml}</div>
+    </div>`;
+
+  // Close on overlay tap
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+  document.body.appendChild(modal);
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  const modal = document.getElementById('vol-modal');
+  if (modal) modal.remove();
+  document.body.style.overflow = '';
 }
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
