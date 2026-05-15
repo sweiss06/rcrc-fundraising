@@ -652,23 +652,22 @@ function showVolunteers(fundraiserName, organizerPhone) {
     });
   }
 
-  // Text All — iOS uses & separator, also provide copy fallback
-  const smsHref = 'sms:' + allDigits.join('&');
   const numbersForCopy = allDigits.map(d =>
     d.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3')).join(', ');
 
   const textAllHtml = allDigits.length > 1 ? `
     <div style="padding:12px 20px; border-bottom:1px solid var(--border); background:var(--off-white);">
-      <a href="${smsHref}" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 20px;background:var(--navy);color:#fff;border-radius:20px;text-decoration:none;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;">
-        💬 Text All (${allDigits.length} people)
-      </a>
-      <div style="margin-top:10px;background:var(--white);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
-        <div style="padding:8px 12px;font-size:10px;font-weight:600;color:var(--text-lt);text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid var(--border);">
-          All numbers — tap to copy if group doesn't open
-        </div>
+      <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px;">📋 Create a Group Text</div>
+      <div style="font-size:11px;color:var(--text-md);line-height:1.8;margin-bottom:10px;">
+        ① Tap <strong>Copy Numbers</strong> below<br>
+        ② Open iMessage → tap ✏️ compose<br>
+        ③ Paste into the <strong>To:</strong> field<br>
+        ④ Name the thread <em>${fundraiserName} Volunteers</em>
+      </div>
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
         <div style="padding:10px 12px;display:flex;align-items:center;gap:10px;">
           <div style="font-size:12px;color:var(--text);flex:1;line-height:1.6;">${numbersForCopy}</div>
-          <button onclick="navigator.clipboard.writeText('${numbersForCopy}').then(()=>{this.textContent='✓ Copied';setTimeout(()=>this.textContent='Copy',2000)})" style="flex-shrink:0;padding:6px 12px;background:var(--navy);color:#fff;border:none;border-radius:20px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;">Copy</button>
+          <button onclick="navigator.clipboard.writeText('${numbersForCopy}').then(()=>{this.textContent='✓ Copied!';this.style.background='var(--green)';setTimeout(()=>{this.textContent='Copy';this.style.background='var(--navy)'},2000)})" style="flex-shrink:0;padding:8px 14px;background:var(--navy);color:#fff;border:none;border-radius:20px;font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;">Copy</button>
         </div>
       </div>
     </div>` : '';
