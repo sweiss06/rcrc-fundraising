@@ -657,13 +657,8 @@ function showVolunteers(fundraiserName, organizerPhone) {
 
   const textAllHtml = allDigits.length > 1 ? `
     <div style="padding:12px 20px; border-bottom:1px solid var(--border); background:var(--off-white);">
-      <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px;">📋 Create a Group Text</div>
-      <div style="font-size:11px;color:var(--text-md);line-height:1.8;margin-bottom:10px;">
-        ① Tap <strong>Copy Numbers</strong> below<br>
-        ② Open iMessage → tap ✏️ compose<br>
-        ③ Paste into the <strong>To:</strong> field<br>
-        ④ Name the thread <em>${fundraiserName} Volunteers</em>
-      </div>
+      <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--navy);margin-bottom:6px;">📋 Create a Group Text</div>
+      <div style="font-size:11px;color:var(--text-lt);margin-bottom:10px;">Copy the numbers below · suggest naming the thread <em style="color:var(--text-md);">${fundraiserName} Volunteers</em></div>
       <div style="background:var(--white);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
         <div style="padding:10px 12px;display:flex;align-items:center;gap:10px;">
           <div style="font-size:12px;color:var(--text);flex:1;line-height:1.6;">${numbersForCopy}</div>
