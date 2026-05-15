@@ -509,7 +509,7 @@ function renderFundraisers() {
         <div class="info-row"><div class="info-label">Volunteers</div><div class="info-val">${spots}</div></div>
         ${notes?`<div class="info-row"><div class="info-label">Details</div><div class="info-val" style="color:var(--text-lt);font-size:12px;line-height:1.7;">${linkify(notes)}</div></div>`:''}
         ${needed > 0 ? `<div style="padding-top:8px;">
-          <button class="view-vols-btn" onclick="showVolunteers('${name.replace(/'/g,"\\'")}')">
+          <button class="view-vols-btn" onclick="showVolunteers('${name.replace(/'/g,"\\'")}', '${phoneDigits}')">
             👥 View Volunteers (${filled})
           </button>
         </div>` : ''}
@@ -617,20 +617,26 @@ function getInitials(label) {
   return name.split(' ').map(w => w[0]||'').join('').toUpperCase().slice(0,2);
 }
 
-function showVolunteers(fundraiserName) {
+function showVolunteers(fundraiserName, organizerPhone) {
   const vols = seData.filter(r => String(r[0]).trim() === fundraiserName);
+
+  // Collect all phone numbers: organizer first, then volunteers (deduped)
+  const allDigits = [];
+  const orgDigits = (organizerPhone || '').replace(/\D/g,'');
+  if (orgDigits) allDigits.push(orgDigits);
 
   let bodyHtml = '';
   if (!vols.length) {
     bodyHtml = `<div class="modal-empty">No volunteers signed up yet.<br>Be the first!</div>`;
   } else {
     vols.forEach(r => {
-      const label   = String(r[1]||'').trim();
-      const athlete = String(r[2]||'').trim();
-      const phone   = getPhone(label);
-      const digits  = phone.replace(/\D/g,'');
-      const name    = firstName(label);
+      const label    = String(r[1]||'').trim();
+      const athlete  = String(r[2]||'').trim();
+      const phone    = getPhone(label);
+      const digits   = phone.replace(/\D/g,'');
+      const name     = firstName(label);
       const initials = getInitials(label);
+      if (digits && !allDigits.includes(digits)) allDigits.push(digits);
 
       bodyHtml += `<div class="vol-row">
         <div class="vol-avatar">${initials}</div>
@@ -646,6 +652,15 @@ function showVolunteers(fundraiserName) {
     });
   }
 
+  // Text All button — only if we have multiple numbers
+  const textAllHtml = allDigits.length > 1 ? `
+    <div style="padding:12px 20px; border-bottom:1px solid var(--border); background:var(--off-white);">
+      <a href="sms:${allDigits.join(',')}" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 20px;background:var(--navy);color:#fff;border-radius:20px;text-decoration:none;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;">
+        💬 Text All (${allDigits.length} people)
+      </a>
+      <div style="text-align:center;font-size:10px;color:var(--text-lt);margin-top:6px;">Opens iMessage with organizer + all volunteers</div>
+    </div>` : '';
+
   const existing = document.getElementById('vol-modal');
   if (existing) existing.remove();
 
@@ -659,10 +674,10 @@ function showVolunteers(fundraiserName) {
         <div class="modal-title">👥 ${fundraiserName}</div>
         <button class="modal-close" onclick="closeModal()">✕</button>
       </div>
+      ${textAllHtml}
       <div class="modal-body">${bodyHtml}</div>
     </div>`;
 
-  // Close on overlay tap
   modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
   document.body.appendChild(modal);
   document.body.style.overflow = 'hidden';
