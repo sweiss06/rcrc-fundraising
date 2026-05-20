@@ -563,8 +563,6 @@ function renderResults(filter) {
       <tr>
         <th>Fundraiser</th>
         <th>Total Raised</th>
-        <th>Per Athlete</th>
-        <th>Split Among</th>
       </tr>
     </thead>
     <tbody>`;
@@ -572,8 +570,6 @@ function renderResults(filter) {
   filtered.forEach(r => {
     const name   = String(r[0]||'').trim();
     const raised = fmt(r[2]);
-    const per    = fmt(r[4]);
-    const split  = String(r[3]||'').trim() || '—';
     const isDone = completedNames.has(name);
 
     h += `<tr class="${isDone?'done-row':''}">
@@ -581,8 +577,6 @@ function renderResults(filter) {
         <span class="status-dot ${isDone?'dot-done':'dot-active'}"></span>${name}
       </td>
       <td class="${raised?'td-amount':'td-pending'}">${raised || 'Pending'}</td>
-      <td class="${per?'td-amount':'td-pending'}">${per || '—'}</td>
-      <td class="td-split">${split}</td>
     </tr>`;
   });
 
@@ -591,7 +585,6 @@ function renderResults(filter) {
       <tr>
         <td>Total</td>
         <td>${total > 0 ? fmt(total) : '—'}</td>
-        <td></td><td></td>
       </tr>
     </tfoot>
   </table>
