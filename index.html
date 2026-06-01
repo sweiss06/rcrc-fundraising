@@ -527,13 +527,14 @@ function renderResults(filter) {
   const el = document.getElementById('results-content');
   if (!el) return;
 
-  const completedNames = new Set(osData.filter(r => String(r[9]).trim() === 'Completed').map(r => String(r[0]).trim()));
-  const activeNames    = new Set(osData.filter(r => String(r[9]).trim() === 'Active').map(r => String(r[0]).trim()));
+  const completedNames  = new Set(osData.filter(r => String(r[9]).trim() === 'Completed').map(r => String(r[0]).trim()));
+  const activeNames     = new Set(osData.filter(r => String(r[9]).trim() === 'Active').map(r => String(r[0]).trim()));
+  const cancelledNames  = new Set(osData.filter(r => String(r[9]).trim() === 'Cancelled').map(r => String(r[0]).trim()));
 
   let filtered;
-  if (currentFilter === 'active')    filtered = ftData.filter(r => activeNames.has(String(r[0]).trim()));
+  if (currentFilter === 'active')         filtered = ftData.filter(r => activeNames.has(String(r[0]).trim()));
   else if (currentFilter === 'completed') filtered = ftData.filter(r => completedNames.has(String(r[0]).trim()));
-  else filtered = ftData;
+  else filtered = ftData.filter(r => !cancelledNames.has(String(r[0]).trim()));
 
   const total = filtered.reduce((s,r) => { const n=parseFloat(r[2]); return s+(isNaN(n)?0:n); }, 0);
   const totalLabel = currentFilter === 'active' ? 'Active Total' : currentFilter === 'completed' ? 'Completed Total' : 'Season Total';
